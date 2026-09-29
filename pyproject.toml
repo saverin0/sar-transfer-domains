@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sar-transfer-part2"
+version = "0.1.0"
+description = "Part two - do frozen encoders transfer to SAR outside glaciers? Glacial lakes, snow, forest and alpine glaciers."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+# Colab already ships torch, transformers, numpy, pandas, matplotlib, pillow, psutil.
+# The rest is what the domain converters and the Hugging Face steps need:
+#   requests         all four converters (downloads, range reads)
+#   rasterio         glacial_lakes.py, snow.py (REQUIRES)
+#   h5py             alpine.py (REQUIRES)
+#   huggingface_hub  glacial_lakes.py (bench_source="hf"), hub.py (private copies)
+dependencies = [
+    "numpy",
+    "pandas",
+    "pillow",
+    "tqdm",
+    "requests",
+    "rasterio",
+    "h5py",
+    "huggingface_hub>=0.23",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
