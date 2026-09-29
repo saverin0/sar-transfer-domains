@@ -58,15 +58,15 @@ def card(man: dict, rid: str) -> str:
 license: {_licence_id(lic)}
 tags: [sar, sentinel-1, segmentation, sar-transfer]
 ---
-# {rid}: converted copy of {man['dataset']}
+# {rid} - converted copy of {man['dataset']}
 
-Private working copy for the sar-transfer project. It is NOT the original dataset: the
+Private working copy for the sar-transfer project. It is NOT the original dataset; the
 radar is reduced to two channels ({' / '.join(man['channels'])}, units {man['units']}),
 float16, cut into {man['chip_size']} px chips; labels as class ids ({classes}; 255 = ignore).
 
-**Original source:** {src.get('name', src.get('title', man['dataset']))}
-DOI / link: {src.get('doi', src.get('landing_page', src.get('bucket', 'see manifest.json')))}
-**Licence of the original:** {lic}. This copy keeps that licence and its attribution terms.
+**Original source** - {src.get('name', src.get('title', man['dataset']))}
+DOI / link - {src.get('doi', src.get('landing_page', src.get('bucket', 'see manifest.json')))}
+**Licence of the original** - {lic}. This copy keeps that licence and its attribution terms.
 
 | split | chips |
 |---|---|
@@ -78,7 +78,7 @@ DOI / link: {src.get('doi', src.get('landing_page', src.get('bucket', 'see manif
 {cite}
 ```
 
-Full provenance (source files, converter notes, statistics): `manifest.json`.
+Full provenance (source files, converter notes, statistics) is in `manifest.json`.
 """
 
 
@@ -176,7 +176,8 @@ def stage(names, dest: str | Path, drive_root: str | Path, owner: str | None = N
           token: str | None = None) -> list[str]:
     """Bring each converted dataset to local disk once per runtime; returns the complete ones.
 
-    Per dataset: a complete copy already in `dest` is kept. Else the private Hugging Face copy of
+    Per dataset: a complete copy already in `dest` is kept if it is the same conversion as the
+    complete copy on Drive (or Drive has none). Else the private Hugging Face copy of
     `owner` is fetched (fast), but only if it is the same conversion as the complete copy on Drive
     (or Drive has none). Else the Drive copy is used. Every copy lands in a temporary folder first
     and gets its final name only after prepared.check_complete passes, so an interrupted copy is
@@ -189,12 +190,14 @@ def stage(names, dest: str | Path, drive_root: str | Path, owner: str | None = N
     ready = []
     for name in names:
         out, t0 = dest / name, time.perf_counter()
-        if out.exists() and not prepared.check_complete(out):
-            ready.append(name)
-            continue
         drive = drive_root / name
         drive_bad = prepared.check_complete(drive)
         drive_man = None if drive_bad else load_manifest(drive_root, name)
+        if out.exists() and not prepared.check_complete(out):
+            if drive_man is None or same_conversion(load_manifest(dest, name), drive_man):
+                ready.append(name)
+                continue
+            print(f"{name}: the local copy is another conversion than the one on Drive -> staged again")
         if owner is not None:
             try:
                 fetch(name, owner, dest, token, drive_manifest=drive_man)

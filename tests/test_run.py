@@ -68,7 +68,9 @@ try:
 except ValueError:
     pass
 R._check_same_settings(res / f"{run}__info.json", {**R.PRE_REGISTERED_SETTINGS, "data_created_utc": "x"})
-(res / f"{run}__info.json").write_text(json.dumps(info))
+(res / f"{run}__info.json").unlink()                                # a run that stopped before info.json ...
+R.run_domain(root, "toy_lakes", "fake", res, token=None, layer=1, seeds=(0, 1), steps=40, batch=4, device="cpu")
+assert json.loads((res / f"{run}__info.json").read_text())["settings"]["steps"] == 40   # ... is run again
 tab = R.domain_table(res)
 assert set(tab["head"]) == {"decoder", "majority", "probe"} and (tab[tab["head"] == "decoder"].seeds == 2).all(), tab
 assert set(tab["run"]) == {run}, set(tab["run"])

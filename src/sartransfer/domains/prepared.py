@@ -46,6 +46,12 @@ class PreparedWriter:
             raise ValueError(f"class ids must be 0..254, got {sorted(classes)}")
         self.dir = Path(root) / dataset
         self.dir.mkdir(parents=True, exist_ok=True)
+        stale = sorted({p for pat in ("manifest.json", "*_images.npy", "*_labels.npy", "*_meta.csv", ".*.part*.npy")
+                        for p in self.dir.glob(pat)})
+        for p in stale:                  # an earlier conversion's files never mix with this one
+            p.unlink()
+        if stale:
+            print(f"[clean] removed {len(stale)} file(s) of an earlier conversion from {self.dir}")
         self.dataset, self.chip_size = dataset, chip_size
         self.classes = {int(k): str(v) for k, v in classes.items()}
         self.source, self.channels, self.units = source, tuple(channels), units

@@ -10,21 +10,25 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 
-# Colab already ships torch, transformers, numpy, pandas, matplotlib, pillow, psutil.
-# The rest is what the domain converters and the Hugging Face steps need:
+# Every package the code imports. Colab already ships torch, transformers, numpy, pandas, scipy,
+# scikit-learn and matplotlib; the rest is what the converters and the Hugging Face steps need:
 #   requests         all four converters (downloads, range reads)
 #   rasterio         glacial_lakes.py, snow.py (REQUIRES)
 #   h5py             alpine.py (REQUIRES)
-#   huggingface_hub  glacial_lakes.py (bench_source="hf"), hub.py (private copies)
+#   huggingface_hub  glacial_lakes.py (bench_source="hf"), hub.py (private copies), encoders.py
+#   scipy, scikit-learn, matplotlib   embed_views.py (notebook 03)
 dependencies = [
     "numpy",
     "pandas",
-    "pillow",
-    "tqdm",
+    "torch",
+    "transformers",
+    "huggingface_hub>=0.23",
     "requests",
     "rasterio",
     "h5py",
-    "huggingface_hub>=0.23",
+    "scipy",
+    "scikit-learn",
+    "matplotlib",
 ]
 
 [project.optional-dependencies]
@@ -35,3 +39,12 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+# ruff's classic default set, pinned here because newer ruff versions enable a
+# much larger default set and CI installs a fixed version anyway.
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E701", "E702", "E731", "E741"]   # one-liners, lambdas and `l` as a name are style, not errors
+
+[tool.ruff.lint.per-file-ignores]
+"src/sartransfer/models/anyup/**" = ["ALL"]   # vendored, kept as published

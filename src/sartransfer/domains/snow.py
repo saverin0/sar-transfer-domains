@@ -242,7 +242,7 @@ F16_MAX = 65504.0            # largest finite float16; the prepared images are f
 # ------------------------------------------------------------------ download
 
 def _md5(path: Path, every_s: float = 60.0) -> str:
-    h, done, size, t0, last = hashlib.md5(), 0, path.stat().st_size, time.time(), time.time()
+    h, done, size, last = hashlib.md5(), 0, path.stat().st_size, time.time()
     with open(path, "rb") as f:
         while True:
             b = f.read(16 << 20)
@@ -703,7 +703,7 @@ def convert(raw_root: str | Path, out_root: str | Path, chip_size: int = CHIP, l
            if max_scenes_per_split else ""))
     w = PreparedWriter(out_root, DATASET, chip_size, CLASSES, SOURCE, channels=("VV", "VH"), units="dB",
                        pixel_spacing_m=None, notes=notes)
-    flush = getattr(w, "flush", None) or w._flush       # public flush(split) once prepared.py has one (requested)
+    flush = w.flush
     run = []
     t0 = time.time()
     with zipfile.ZipFile(zpath) as zf:

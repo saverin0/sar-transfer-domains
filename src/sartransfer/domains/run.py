@@ -183,7 +183,7 @@ def _patch_targets(labels: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
 # ------------------------------------------------------------------ heads
 
 class _TrainSet:
-    """Training chips as tensors, built once per decoder seed (from part one's heads.TrainSet).
+    """Training chips as tensors, built once per decoder seed (from part one).
 
     The chips live on the GPU when they fit (fp16 features, uint8 image and labels), else in
     host memory with only the fp16 batch copied per step. `batch(idx)` returns the same values
@@ -328,7 +328,9 @@ def run_domain(prepared_root: str | Path, dataset: str, encoder: str, res_dir: s
     if spath.exists() and not force:
         s = pd.read_csv(spath)
         want = {("probe", -1)} | {("decoder", sd) for sd in seeds}
-        if want <= set(zip(s["head"], s["seed"])):
+        if not (res_dir / f"{run}__info.json").exists():     # the summary is written last since 2026-09-29
+            print(f"  {run}: summary without info.json (a run that stopped midway) -> run again")
+        elif want <= set(zip(s["head"], s["seed"])):
             _check_same_settings(res_dir / f"{run}__info.json", settings)
             print(f"skip {run}: summary already has probe + decoder seeds {list(seeds)}")
             return s
@@ -453,7 +455,6 @@ def run_domain(prepared_root: str | Path, dataset: str, encoder: str, res_dir: s
             torch.cuda.empty_cache()
 
     out = pd.DataFrame(rows)
-    out.to_csv(spath, index=False)
     reg = pd.DataFrame(region_rows)
     for (h, sd), g in reg.groupby(["head", "seed"]):
         g.to_csv(res_dir / f"{run}__{h}{'' if sd < 0 else f'__s{sd}'}__regions.csv", index=False)
@@ -463,6 +464,9 @@ def run_domain(prepared_root: str | Path, dataset: str, encoder: str, res_dir: s
             "chip_size": size, "times": times, "encoder_batch": ebatch, "settings": settings,
             "versions": package_versions()}
     (res_dir / f"{run}__info.json").write_text(json.dumps(info, indent=1), encoding="utf-8")
+    tmp = spath.with_name(spath.name + ".partial")          # the summary last and whole: it marks the run done
+    out.to_csv(tmp, index=False)
+    tmp.replace(spath)
     cols = ["head", "seed", "split", "mIoU", "accuracy"] + (["IoU_pos", "F1_pos"] if k == 2 else [])
     print(out[cols].round(3).to_string(index=False))
     print(f"  total {times['total_min']:.1f} min")

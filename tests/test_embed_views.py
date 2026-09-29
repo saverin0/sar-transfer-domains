@@ -123,6 +123,8 @@ assert up.shape == (16, 16, 8)                                   # 1/4 of the 64
 assert E._block_valid(np.full((2, 16, 16), np.nan)).sum() == 0 and E._block_valid(np.zeros((2, 16, 16))).all()
 again = E.run_all(root, res, Path(tempfile.mkdtemp(dir=TMP)), ["toy_two", "toy_three"], token=None, device="cpu")
 pd.testing.assert_frame_equal(table, again)                               # deterministic
+kept = E.run_all(root, res, out2, ["toy_two"], token=None, device="cpu")  # raw again for one dataset, after AnyUp
+assert len(kept) == len(full) and (kept.features == "anyup_quarter").sum() == len(au), kept   # AnyUp rows kept
 print(table.round(3).to_string(index=False))
 print("embed_views verified: fixed rules (pure patch, chips A/B, query), maps, similarity, class margins + AUC, "
       "figures, numbers CSV, determinism")

@@ -156,8 +156,7 @@ Memory
     PreparedWriter keeps a split's chips in RAM until it holds 512 of them, which
     at 992 px is ~2.5 GB. convert() therefore writes a split's buffered chips to
     disk whenever they pass flush_mb (default 256 MB) and after each split,
-    through the writer's flush (its private _flush until prepared.py has a public
-    one; requested). Peak RAM is then about 2 x flush_mb (the buffer plus the
+    through the writer's flush. Peak RAM is then about 2 x flush_mb (the buffer plus the
     np.stack inside the flush) plus one tile's working set, whatever the
     subregions or chip size.
 
@@ -1004,7 +1003,7 @@ def convert(raw_root, out_root, subregions=("ALP",), orbit: str = "asc", sar_sca
         used = {f"{sp}/{sb}": f"{Path(f.filename).name} ({kind})" for (sp, sb), (f, _, kind) in handles.items()}
         w = PreparedWriter(out_root, name, c, CLASSES, source={**SOURCE, "subregions": list(subs), "files_used": used},
                            channels=CHANNELS, units="dB", pixel_spacing_m=PIXEL_SPACING_M)
-        flush = getattr(w, "flush", None) or w._flush      # public flush(split) once prepared.py has one (requested)
+        flush = w.flush
         budget, per_chip = flush_mb * 1e6, 5 * c * c         # float16 image (2 x 2 B) + uint8 label per pixel
         print(f"RAM: a split's buffered chips go to disk every {flush_mb:g} MB and after the split; "
               f"peak ~2 x {flush_mb:g} MB + one tile")

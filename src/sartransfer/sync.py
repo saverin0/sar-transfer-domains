@@ -11,6 +11,7 @@ Usage, always locally, never on the runtime::
     python sync.py --check    # exit 1 if a notebook is stale
     python sync.py nb.ipynb   # pack into specific notebooks
     python sync.py --clear    # empty the cells again, before publishing
+    python sync.py --no-git   # pack in a folder that is not a git work tree (see below)
 
 What travels: `src/sartransfer/**/*.py` and `pyproject.toml`, gzipped and
 base64-encoded. What never travels: `.env`, anything under `.git`,
@@ -20,6 +21,9 @@ committed to git, and inside base64 no search would find them, so:
 - in a git work tree only files git tracks travel, and an untracked or
   git-ignored `.py` file under the package stops the sync (git add it or delete
   it), so nothing that .gitignore keeps out of the repository reaches a notebook;
+- outside a git work tree, or when git fails (not installed, "dubious
+  ownership", ...), the sync stops too, unless --no-git is given: then every
+  `.py` under the package travels, with only the check below;
 - any file with something that looks like a token or a private key stops it.
 
 The payload is deterministic: sorted names, fixed mtime, no gzip timestamp. An
@@ -83,9 +87,13 @@ def _git_py_files(repo_root: Path, pkg_dir: Path) -> tuple[set[str], list[str]] 
     return tracked, other
 
 
-def collect_sources(pkg_dir: Path = PKG_DIR, repo_root: Path = REPO_ROOT) -> dict[str, bytes]:
+def collect_sources(pkg_dir: Path = PKG_DIR, repo_root: Path = REPO_ROOT,
+                    allow_no_git: bool = False) -> dict[str, bytes]:
     """Return {archive path: bytes} for everything that should travel (see the module docstring)."""
     git = _git_py_files(repo_root, pkg_dir)
+    if git is None and not allow_no_git:
+        raise SystemExit(f"sync stopped: {repo_root} is not a git work tree, or git failed, so untracked and "
+                         "git-ignored files cannot be told apart -- fix git, or run with --no-git to pack every .py")
     if git is not None and git[1]:
         raise SystemExit(f"sync stopped: untracked or git-ignored files {git[1]} -- git add them or delete them")
     files: dict[str, bytes] = {}
@@ -172,10 +180,9 @@ sys.path.insert(0, str(_DEST))
 for _m in [m for m in sys.modules if m == "sartransfer" or m.startswith("sartransfer.")]:
     del sys.modules[_m]
 
-# Colab already ships numpy, pandas, pillow and tqdm. Install only what is absent (exact
-# versions, pinned 2026-09-29).
-for _mod, _pip in [("numpy", "numpy==2.5.3"), ("pandas", "pandas==3.0.6"), ("PIL", "pillow==12.3.0"),
-                   ("tqdm", "tqdm==4.70.1")]:
+# Colab already ships numpy and pandas. Install only what is absent (exact versions, pinned
+# 2026-09-29).
+for _mod, _pip in [("numpy", "numpy==2.5.3"), ("pandas", "pandas==3.0.6")]:
     try:
         __import__(_mod)
     except ImportError:
@@ -213,8 +220,8 @@ def embedded_fingerprint(nb: dict) -> str | None:
     return None
 
 
-def sync(paths: list[Path], check_only: bool = False) -> int:
-    files = collect_sources()
+def sync(paths: list[Path], check_only: bool = False, allow_no_git: bool = False) -> int:
+    files = collect_sources(allow_no_git=allow_no_git)
     fingerprint = source_fingerprint(files)
     payload, sha = make_payload(files)
     cell_src = build_cell(payload, sha, fingerprint, len(files))
@@ -282,10 +289,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="report stale notebooks and exit 1, changing nothing")
     ap.add_argument("--clear", action="store_true",
                     help="empty the sync cells (no packed code), e.g. before publishing")
+    ap.add_argument("--no-git", action="store_true",
+                    help="pack every .py although this is not a git work tree (only the token check applies)")
     args = ap.parse_args(argv)
     if args.clear:
         return clear(find_notebooks(args.notebooks))
-    return sync(find_notebooks(args.notebooks), check_only=args.check)
+    return sync(find_notebooks(args.notebooks), check_only=args.check, allow_no_git=args.no_git)
 
 
 if __name__ == "__main__":

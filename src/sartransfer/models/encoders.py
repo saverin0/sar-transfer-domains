@@ -42,13 +42,20 @@ class EncoderSpec:
 def verify_remote_code(spec: EncoderSpec, token: str | None = None) -> Path:
     """Refuse to run remote code that is not the reviewed copy.
 
-    Downloads only the *.py files of the pinned revision into the HF cache (the
-    same snapshot transformers loads the model code from) and compares the
-    SHA-256 of every .py below the snapshot folder, subfolders included, keyed
-    by relative path, with `remote_code_hashes.REMOTE_CODE_HASHES`. Any extra,
+    Downloads only the *.py files and config.json of the pinned revision into the
+    HF cache (the same snapshot transformers loads the model code from) and
+    compares the SHA-256 of every .py below the snapshot folder, subfolders
+    included, and of config.json (its auto_map picks the module), keyed by
+    relative path, with `remote_code_hashes.REMOTE_CODE_HASHES`. Any extra,
     missing or changed file raises before anything is executed.
+
+    transformers runs its own copies of these files from HF_MODULES_CACHE and
+    reuses a copy that exists, without comparing it to the snapshot. So the
+    copies of this revision are deleted here, after the check; loading then
+    copies them again from the checked snapshot.
     """
     import hashlib
+    import shutil
 
     from huggingface_hub import snapshot_download
 
@@ -57,13 +64,20 @@ def verify_remote_code(spec: EncoderSpec, token: str | None = None) -> Path:
     if spec.revision is None:
         raise ValueError(f"{spec.model_id}: remote code needs a pinned revision")
     expected = REMOTE_CODE_HASHES[spec.model_id]
-    d = Path(snapshot_download(spec.model_id, revision=spec.revision, allow_patterns=["*.py"], token=token))
+    d = Path(snapshot_download(spec.model_id, revision=spec.revision, allow_patterns=["*.py", "config.json"],
+                               token=token))
     got = {q.relative_to(d).as_posix(): hashlib.sha256(q.read_bytes()).hexdigest()
-           for q in d.rglob("*.py")}
+           for q in [*d.rglob("*.py"), d / "config.json"] if q.is_file()}
     bad = sorted(k for k in set(expected) | set(got) if expected.get(k) != got.get(k))
     if bad:
         raise RuntimeError(f"{spec.model_id}@{spec.revision[:12]}: remote code differs from the reviewed copy: {bad}")
-    print(f"remote code verified: {len(got)} files == reviewed copy ({spec.model_id}@{spec.revision[:12]})")
+    from transformers.utils import HF_MODULES_CACHE
+
+    stale = [p for p in Path(HF_MODULES_CACHE).glob(f"transformers_modules/**/{spec.revision}") if p.is_dir()]
+    for p in stale:
+        shutil.rmtree(p)
+    print(f"remote code verified: {len(got)} files == reviewed copy ({spec.model_id}@{spec.revision[:12]}); "
+          f"{len(stale)} cached module copy removed, loading copies it again from the checked files")
     return d
 
 

@@ -525,17 +525,20 @@ def _anyup_pass_body(enc, anyup, data: dict, man: dict, encoder: str, stats: dic
                 valid = _block_valid(imgs[j])
                 maps[i] = {"pca": pca_rgb(f, valid), "kmeans": kmeans_map(f, valid, k, max_fit=KMEANS_FIT)}
     present = [c for c in range(k) if counts[c] > 0]
-    X, y = np.concatenate(samp_x).astype(np.float32), np.concatenate(samp_y)
+    X = np.concatenate(samp_x).astype(np.float32) if samp_x else None
+    y = np.concatenate(samp_y) if samp_y else np.empty(0, np.int64)
     out = {"encoder": encoder, "classes": classes, "chips": ref["chips"], "chip_regions": ref["regions"],
            "query": {"row": qr, "col": qc, "fallback": ref["fallback"]}, "query_class": classes[cls],
            "maps": maps, "sim_map": sim_map, "top_k": len(best_c),
            "top_shares": {nm: float(v) for nm, v in zip(classes, (torch.bincount(best_c, minlength=k)[:k].float()
                                                                    / max(len(best_c), 1)).cpu().numpy())},
            "margins": {}, "auc": {}, "n_pure": {classes[c]: int(counts[c]) for c in present}, "n_sample": len(y)}
-    if len(present) >= 2:
+    if len(present) >= 2 and len(y):
         cent = unit(sums[present] / counts[present][:, None]).cpu().numpy()
         cos = X @ cent.T
         for j, c in enumerate(present):
+            if not ((y == c).any() and (y != c).any()):      # a rare class can miss the uniform sample
+                continue
             m = cos[:, j] - np.delete(cos, j, axis=1).max(1)
             out["margins"][classes[c]] = (m[y == c], m[y != c])
             out["auc"][classes[c]] = auc_rank(m[y == c], m[y != c])
@@ -563,12 +566,25 @@ def _anyup_ref(prepared_root, d: str, raw_row) -> dict:
             "raw_k": int(raw_row.top_k)}
 
 
+def _merge_numbers(out_dir: Path, new: pd.DataFrame, features: str, datasets) -> pd.DataFrame:
+    """Replace this call's rows (these features, these datasets) in embedding_numbers.csv, keep the others."""
+    p = Path(out_dir) / "embedding_numbers.csv"
+    old = pd.read_csv(p) if p.exists() else pd.DataFrame(columns=["dataset", "features"])
+    if "features" not in old:
+        old["features"] = "raw"
+    old = old[~((old["features"] == features) & old["dataset"].isin(list(datasets)))]
+    table = pd.concat([old, new], ignore_index=True) if len(old) else new.reset_index(drop=True)
+    table.to_csv(p, index=False)
+    return table
+
+
 def run_all_anyup(prepared_root, res_dir, out_dir, datasets, token: str | None, anyup_weights,
                   device: str = "cuda") -> pd.DataFrame:
     """View 4: views 1-3 on the AnyUp features (after run_all, whose chips and query spot it reuses).
 
     Writes embed_{maps,similarity,margins}_anyup_<dataset>.png and adds rows with features = "anyup_quarter"
-    to embedding_numbers.csv (earlier AnyUp rows are replaced). Returns the whole table."""
+    to embedding_numbers.csv (earlier AnyUp rows of these datasets are replaced, all others kept).
+    Returns the whole table."""
     import gc
 
     import torch
@@ -604,14 +620,12 @@ def run_all_anyup(prepared_root, res_dir, out_dir, datasets, token: str | None, 
                               what="features after AnyUp (4 px blocks)",
                               unit="sample of pure test blocks (AnyUp, 4 px)"):
             print("saved", p)
-    new = pd.DataFrame(rows)
-    table = pd.concat([raw, new], ignore_index=True)
-    table.to_csv(out_dir / "embedding_numbers.csv", index=False)
-    return table
+    return _merge_numbers(out_dir, pd.DataFrame(rows), "anyup_quarter", datasets)
 
 
 def run_all(prepared_root, res_dir, out_dir, datasets, token: str | None, device: str = "cuda") -> pd.DataFrame:
-    """Every dataset x encoder: features of the test split, views, figures, one numbers CSV."""
+    """Every dataset x encoder: features of the test split, views, figures, and the raw rows of
+    embedding_numbers.csv (earlier raw rows of these datasets are replaced, all others kept)."""
     import gc
 
     import torch
@@ -642,6 +656,4 @@ def run_all(prepared_root, res_dir, out_dir, datasets, token: str | None, device
         man = load_manifest(prepared_root, d)
         for p in plot_dataset(d, load_split(prepared_root, d, "test"), man, per[d], out_dir):
             print("saved", p)
-    table = pd.DataFrame(rows)
-    table.to_csv(out_dir / "embedding_numbers.csv", index=False)
-    return table
+    return _merge_numbers(out_dir, pd.DataFrame(rows), "raw", datasets)

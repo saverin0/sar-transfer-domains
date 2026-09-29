@@ -51,7 +51,12 @@ pkg = repo / "src" / "sartransfer"
 pkg.mkdir(parents=True)
 (pkg / "a.py").write_text("x = 1\n")
 (repo / "pyproject.toml").write_text("[project]\nname = 'x'\n")
-got = sync.collect_sources(pkg, repo)                               # not a git work tree: everything travels
+try:                                                                # not a git work tree: refused ...
+    sync.collect_sources(pkg, repo)
+    raise AssertionError("packed outside git without --no-git")
+except SystemExit as e:
+    assert "not a git work tree" in str(e), e
+got = sync.collect_sources(pkg, repo, allow_no_git=True)            # ... unless asked: everything travels
 assert set(got) == {"sartransfer/a.py", "pyproject.toml"}, set(got)
 if shutil.which("git"):
     git = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)  # noqa: E731

@@ -200,7 +200,7 @@ HF = {"repo_id": "Sk-21/Cryo-Bench", "repo_type": "dataset", "filename": "data/G
       "size": 44287419921, "sha256": "ef47a250d0bd3551c77ca1716967108c4ffa6bd56ae09f21cf02f4857ddfc085"}   # [H]
 HF_SPLITS = {"train": "train", "val": "val", "validation": "val", "test": "test"}     # folder name -> split
 GLB_BYTES = 56431403680         # [D] sum of the img_dir + ann_dir .tif sizes = the extracted GLB folder
-DONE_MARKER = ".extraction_complete"      # as data/inventory.unzip_caffe: written only after a full extraction
+DONE_MARKER = ".extraction_complete"      # written only after a full extraction
 SAME_MARKER = ".zenodo_identical"         # written by check_identity() after a passing check
 
 SOURCE = {
@@ -393,9 +393,9 @@ def download_hf(dest, retries: int = 2, keep_archive: bool = False) -> Path:
     count as used space. Free disk for the archive AND the extracted files is checked before
     the download starts.
     Extraction: the system tar (pigz if installed, else gzip), or Python's tarfile without
-    tar, into dest/.GLB_partial, then renamed to dest/GLB and marked '.extraction_complete'
-    (as data/inventory.unzip_caffe); a GLB folder without the marker is a half-finished
-    extraction and is removed and redone. keep_archive=False deletes the archive afterwards.
+    tar, into dest/.GLB_partial, then renamed to dest/GLB and marked '.extraction_complete';
+    a GLB folder without the marker is a half-finished extraction and is removed and redone.
+    keep_archive=False deletes the archive afterwards.
     """
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
@@ -531,8 +531,10 @@ def _extract_tgz(tgz: Path, dest: Path, top: str) -> Path:
     tar, pigz, t0 = shutil.which("tar"), shutil.which("pigz"), time.time()
     if tar:                                   # relative paths: no 'C:' for a GNU tar on Windows to read as a host
         print(f"[extract] {tgz.name} with tar + {'pigz' if pigz else 'gzip'} ...", flush=True)
-        subprocess.run([tar, "--use-compress-program=pigz" if pigz else "-z", "-x", "-f",
-                        Path(os.path.relpath(tgz, dest)).as_posix(), "-C", tmp.name], cwd=dest, check=True)
+        # the archive's sha256 is pinned (checked before this); owners and permissions stored in it are not applied
+        subprocess.run([tar, "--use-compress-program=pigz" if pigz else "-z", "-x", "--no-same-owner",
+                        "--no-same-permissions", "-f", Path(os.path.relpath(tgz, dest)).as_posix(), "-C", tmp.name],
+                       cwd=dest, check=True)
     else:
         print(f"[extract] {tgz.name} with Python tarfile ...", flush=True)
         with tarfile.open(tgz, "r:gz") as t:
@@ -745,8 +747,8 @@ def check_identity(raw_root, reference: dict | None = None, workers: int | None 
         (other_size, "files of another size", [f"{hf_name(n)} {sizes[n]:,} B vs {ref[n][0]:,} B" for n in other_size[:4]]),
         (other_crc, "files with the same size but another CRC-32",
          [f"{hf_name(n)} 0x{crc[n]:08x} vs 0x{ref[n][1]:08x}" for n in other_crc[:4]])) if v]
-    _check(not problems, f"GLB from Hugging Face is NOT the Zenodo release (Zenodo names: img_dir = images/, "
-                         f"ann_dir = the mask folder); conversion stopped: " + "; ".join(problems))
+    _check(not problems, "GLB from Hugging Face is NOT the Zenodo release (Zenodo names: img_dir = images/, "
+                         "ann_dir = the mask folder); conversion stopped: " + "; ".join(problems))
     rec = {"summary": summary, "pairs": {s: int(per.get(s, 0)) for s in BENCH_SPLITS}, "files": len(ref),
            "bytes": int(sum(sizes[n] for n in ref)), "stamp": _stamp({n: stats[n] for n in ref}),
            "extra": extra, "extra_hf_paths": [hf_name(n) for n in extra],

@@ -60,6 +60,11 @@ m.write_text("\n".join(m.read_text().splitlines()[:-1]) + "\n")      # local cop
 assert prepared.check_complete(local / "toy_a")
 assert hub.stage(["toy_a"], local, drive, owner=None) == ["toy_a"] and prepared.check_complete(local / "toy_a") == []
 
+# a complete local copy of another conversion than Drive's is staged again
+dm = json.loads((drive / "toy_a" / "manifest.json").read_text())
+(drive / "toy_a" / "manifest.json").write_text(json.dumps({**dm, "created_utc": "2099-01-01T00:00:00Z"}))
+assert hub.stage(["toy_a"], local, drive, owner=None) == ["toy_a"]
+assert prepared.load_manifest(local, "toy_a")["created_utc"] == "2099-01-01T00:00:00Z"
 man = prepared.load_manifest(drive, "toy_a")
 assert hub.same_conversion(man, json.loads(json.dumps(man)))
 assert not hub.same_conversion(man, {**man, "created_utc": "2000-01-01T00:00:00Z"})

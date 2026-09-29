@@ -238,7 +238,8 @@ file as part one; model weights are cached in `MyDrive/sar-transfer/hf_cache`.
 
 Offline tests run on small synthetic files, one script per test, for example
 `python tests/test_contract.py`. Set TMPDIR, TEMP and TMP to choose where their temporary files
-go (see `tests/_setup.py`). `tests/test_alpine.py` needs h5py.
+go (see `tests/_setup.py`). `tests/test_alpine.py` needs h5py. GitHub Actions runs ruff, a compile
+check and every offline test on each push (`.github/workflows/ci.yml`).
 
 ## Security and provenance
 
@@ -250,8 +251,9 @@ go (see `tests/_setup.py`). `tests/test_alpine.py` needs h5py.
 - DINOv3 is loaded from the commit every run here used (`f692fa42da72c6797b67cd73494a168d1120d3ee`).
 - The converters check the checksums the sources publish, except for the alpine Alps subset, which
   is copied in byte ranges from whole files and checked by byte counts only. The glacial-lake
-  Hugging Face copy is compared file by file with the Zenodo release, and its archive is
-  extracted only after every member path is checked.
+  Hugging Face copy is compared file by file with the Zenodo release. Its archive is used only if
+  its SHA-256 equals the pinned value; the system tar unpacks it without the owners and
+  permissions stored in it, and where no tar exists Python's tarfile checks every member first.
 - Packages installed at run time are pinned to exact versions. The pins were set after the run,
   to the then current releases; the run did not record the versions it installed. Every new run
   stores its package versions in its `info.json`.
@@ -259,6 +261,7 @@ go (see `tests/_setup.py`). `tests/test_alpine.py` needs h5py.
   cell alone and never put into the environment.
 - `sync.py` packs only files git tracks, and stops on untracked or git-ignored files and on
   anything that looks like a token or a key, so nothing kept out of git can reach a notebook.
+  Outside a git work tree it stops as well, unless run with `--no-git`.
 
 The notebook outputs are from the runs reported here. The code was tidied afterwards (the fixes
 above, part one's unused modules removed, a data staging helper), which does not change the
@@ -304,6 +307,7 @@ No weights or data are redistributed here. This work uses DINOv3 by Meta.
 
 ```
 LICENSE                    MIT
+.github/workflows/ci.yml   ruff, compile check and the offline tests on every push
 .env.example               template for the Hugging Face tokens
 pyproject.toml             package metadata and dependencies
 sync.py                    packs src/ into every notebook (--check, --clear)

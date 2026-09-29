@@ -1,8 +1,10 @@
-"""SHA-256 of every C-RADIOv4-H remote-code file, recorded after a manual review on 2026-09-25.
+"""SHA-256 of every C-RADIOv4-H remote-code file, recorded after a manual review on 2026-09-25,
+and of its config.json (whose auto_map picks the module), added 2026-09-29 from the pinned revision.
 EncoderSpec pins the revision; encoders.verify_remote_code refuses any other file content."""
 
 REMOTE_CODE_HASHES = {
     "nvidia/C-RADIOv4-H": {
+        "config.json": "f141520df919f1c29cd4f5a95340d9a39b15fbacafa36ca1054c55c919b2af62",
         "adaptor_attn.py": "baa112b58158d75077e9bba8baba51b2c75f6a6deed2d8046aa5e5f2d5cb669a",
         "adaptor_base.py": "f9d285cc76e70f977f9c78e748f610765f0bd068a13f86d804c07c765cece577",
         "adaptor_generic.py": "3d1b5a015ff3754a9eb64cd56b4d04cae01e537a1ffa606adaf904c55fff07a1",

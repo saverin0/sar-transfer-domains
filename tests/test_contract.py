@@ -39,4 +39,15 @@ g = S.encoder_input(d["images"][:4], st, "vv_grey")
 assert np.array_equal(g[:, 0], g[:, 2])
 sk = S.skip_image(d["images"][:4], st)
 assert sk.shape == (4, 1, 32, 32) and sk.min() >= 0 and sk.max() <= 1
-print("contract verified: writer parts + close, reader mmap, validate, bad input refused, S1 input modes, skip image")
+# a new conversion clears the earlier one's files (e.g. a split that no longer exists)
+root2 = Path(tempfile.mkdtemp(dir=TMP))
+for splits in (("train", "val", "test"), ("train", "test")):
+    w2 = P.PreparedWriter(root2, "again", 32, {0: "a", 1: "b"}, source={})
+    for s in splits:
+        w2.add(s, np.zeros((2, 32, 32), np.float32), np.zeros((32, 32), np.uint8))
+    w2.close()
+assert sorted(f.name for f in (root2 / "again").iterdir()) == [
+    "manifest.json", "test_images.npy", "test_labels.npy", "test_meta.csv",
+    "train_images.npy", "train_labels.npy", "train_meta.csv"], sorted(f.name for f in (root2 / "again").iterdir())
+print("contract verified: writer parts + close, reader mmap, validate, bad input refused, S1 input modes, skip image, "
+      "old conversion cleared")
