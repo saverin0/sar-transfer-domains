@@ -1,0 +1,57 @@
+# secrets
+.env
+*.key
+*token*
+
+# data & caches (never in git)
+# leading slash = repo root only, never a folder of the same name under src/
+/data/
+/datasets/
+/cache/
+/features/
+/checkpoints/
+*.zip
+*.tif
+*.tiff
+*.png
+# ...except the README pictures
+!docs/figures/*.png
+*.npy
+*.npz
+*.pt
+*.pth
+*.jsonl
+
+# results: never in git. CSVs and figures live on Drive.
+results/**
+!results/.gitkeep
+
+# python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# editors / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# local model weights + vendored remote code copies for review -- never in git
+/weights/
+*.safetensors
+
+# part two: raw downloads and converted domain data (Colab runtime disk, Drive
+# MyDrive/sar-transfer-part2/, private Hugging Face repos) -- never in git
+/domains_raw/
+/domains_prepared/
+/domains/
+*.tar.gz
+*.hdf5
+*.h5
+*.tfrecord-*
